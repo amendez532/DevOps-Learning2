@@ -1,0 +1,32 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.PROD_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy app to VM
+        run: |
+          scp -r -i ~/.ssh/id_rsa ./azureuser@${{ secrets.PROD_HOST }}:/home/azureuser/MyNodeAppProduction
+          ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.PROD_HOST }} << 'EOF'
+            cd /home/azureuser/MyNodeAppProduction
+            docker build -t mynodeapp .
+            docker stop mynodeapp || true
+            docker rm mynodeapp || true
+            docker run -d -p 3000:3000 --name mynodeapp mynodeapp
+          EOF
