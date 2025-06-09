@@ -13,20 +13,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.PROD_HOST }} >> ~/.ssh/known_hosts
+      - name: Upload app files to VM
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: azureuser
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "./*"
+          target: "/home/azureuser/MyNodeAppProduction"
 
-      - name: Deploy app to VM
-        run: |
-          scp -r -i ~/.ssh/id_rsa ./azureuser@${{ secrets.PROD_HOST }}:/home/azureuser/MyNodeAppProduction
-          ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.PROD_HOST }} << 'EOF'
+      - name: SSH and deploy container
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: azureuser
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
             cd /home/azureuser/MyNodeAppProduction
             docker build -t mynodeapp .
             docker stop mynodeapp || true
             docker rm mynodeapp || true
             docker run -d -p 3000:3000 --name mynodeapp mynodeapp
-          EOF
